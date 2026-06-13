@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoDrive - 燃費記録・計算ダッシュボード</title>
+    <!-- PWA Configuration -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#080c14">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-gas-pump"></i>
+                </div>
+                <h2>EcoDrive</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#dashboard" class="nav-item active" data-tab="dashboard">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>ダッシュボード</span>
+                </a>
+                <a href="#add-record" class="nav-item" data-tab="add-record">
+                    <i class="fa-solid fa-circle-plus"></i>
+                    <span>給油記録の入力</span>
+                </a>
+                <a href="#records-history" class="nav-item" data-tab="records-history">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>履歴一覧</span>
+                </a>
+                <a href="#vehicles" class="nav-item" data-tab="vehicles">
+                    <i class="fa-solid fa-car"></i>
+                    <span>車両管理</span>
+                </a>
+                <a href="#data-settings" class="nav-item" data-tab="data-settings">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>データ・設定</span>
+                    <span id="backup-badge" class="badge-nav-warning d-none">!</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <p>Version 1.0.0</p>
+                <div class="theme-toggle" id="theme-toggle">
+                    <i class="fa-solid fa-moon"></i>
+                    <span>ダークモード</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Header -->
+            <header class="content-header">
+                <div class="header-info">
+                    <h1 id="page-title">ダッシュボード</h1>
+                    <p id="page-subtitle">燃費状況の概要と最近の走行レポート</p>
+                </div>
+                <div class="header-actions">
+                    <div class="vehicle-picker-container">
+                        <i class="fa-solid fa-car-side picker-icon"></i>
+                        <select id="global-vehicle-select" class="premium-select">
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Tab -->
+            <section id="dashboard-tab" class="tab-content active">
+                <!-- Stat Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card primary">
+                        <div class="stat-icon">
+                            <i class="fa-solid fa-gauge-high"></i>
+                        </div>
+                        <div class="stat-details">
+                            <h3>平均燃費</h3>
+                            <div class="stat-value"><span id="stat-avg-efficiency">-</span> <span class="unit">km/L</span></div>
+                            <p class="stat-desc" id="stat-efficiency-compare">給油記録から自動計算</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card success">
+                        <div class="stat-icon">
+                            <i class="fa-solid fa-road"></i>
+                        </div>
+                        <div class="stat-details">
+                            <h3>総走行距離</h3>
+                            <div class="stat-value"><span id="stat-total-distance">-</span> <span class="unit">km</span></div>
+                            <p class="stat-desc" id="stat-last-odometer">メーター: - km</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card warning">
+                        <div class="stat-icon">
+                            <i class="fa-solid fa-yen-sign"></i>
+                        </div>
+                        <div class="stat-details">
+                            <h3>平均ガソリン単価</h3>
+                            <div class="stat-value"><span id="stat-avg-price">-</span> <span class="unit">円/L</span></div>
+                            <p class="stat-desc" id="stat-price-range">最近の価格帯: -</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card info">
+                        <div class="stat-icon">
+                            <i class="fa-solid fa-wallet"></i>
+                        </div>
+                        <div class="stat-details">
+                            <h3>総給油額 / 給油量</h3>
+                            <div class="stat-value"><span id="stat-total-cost">-</span> <span class="unit">円</span></div>
+                            <p class="stat-desc" id="stat-total-fuel">総給油量: - L</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="dashboard-charts-grid">
+                    <div class="chart-card glass-panel">
+                        <div class="chart-header">
+                            <div class="chart-title">
+                                <i class="fa-solid fa-chart-line"></i>
+                                <span>燃費・単価の推移</span>
+                            </div>
+                            <div class="chart-toggles">
+                                <button class="btn-toggle active" data-chart-type="efficiency">燃費 (km/L)</button>
+                                <button class="btn-toggle" data-chart-type="price">単価 (円/L)</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="efficiencyChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="recent-records-card glass-panel">
+                        <div class="card-header-simple">
+                            <div class="card-title">
+                                <i class="fa-solid fa-history"></i>
+                                <span>最近の給油記録</span>
+                            </div>
+                            <a href="#records-history" class="view-all-link" id="view-all-records-btn">すべて見る <i class="fa-solid fa-chevron-right"></i></a>
+                        </div>
+                        <div class="recent-records-list" id="recent-records-list">
+                            <!-- Populated by JS -->
+                            <div class="empty-state">
+                                <i class="fa-solid fa-folder-open"></i>
+                                <p>記録がありません。新しく記録を追加してください。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Add Record Tab -->
+            <section id="add-record-tab" class="tab-content">
+                <div class="form-container-grid">
+                    <div class="form-card glass-panel">
+                        <div class="card-header-icon">
+                            <div class="icon-circle">
+                                <i class="fa-solid fa-gas-pump"></i>
+                            </div>
+                            <div>
+                                <h2>新規給油記録の追加</h2>
+                                <p>日々の給油データを入力して、燃費をリアルタイムに計算します。</p>
+                            </div>
+                        </div>
+
+                        <form id="add-record-form" class="premium-form">
+                            <div class="form-row col-2">
+                                <div class="form-group">
+                                    <label for="record-vehicle">対象車両</label>
+                                    <select id="record-vehicle" class="premium-input" required>
+                                        <!-- Populated dynamically -->
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="record-date">給油日</label>
+                                    <input type="date" id="record-date" class="premium-input" required>
+                                </div>
+                            </div>
+
+                            <div class="divider"><span>走行距離の入力方法</span></div>
+
+                            <div class="input-method-selector">
+                                <label class="radio-tab">
+                                    <input type="radio" name="distance-method" value="odometer" checked>
+                                    <div class="radio-tab-card">
+                                        <i class="fa-solid fa-tachometer-alt"></i>
+                                        <span>オドメーター (総走行距離)</span>
+                                    </div>
+                                </label>
+                                <label class="radio-tab">
+                                    <input type="radio" name="distance-method" value="trip">
+                                    <div class="radio-tab-card">
+                                        <i class="fa-solid fa-route"></i>
+                                        <span>トリップメーター (区間距離)</span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="form-row col-2">
+                                <div class="form-group" id="odometer-group">
+                                    <label for="record-odometer">今回のオドメーター値 <span class="unit-label">(km)</span></label>
+                                    <input type="number" step="0.1" id="record-odometer" class="premium-input" placeholder="例: 24500.5">
+                                    <span class="input-help">前回のメーター値から区間走行距離を自動計算します。※記入し忘れた場合は空欄にできます。</span>
+                                </div>
+                                <div class="form-group d-none" id="trip-group">
+                                    <label for="record-trip">区間走行距離 <span class="unit-label">(km)</span></label>
+                                    <input type="number" step="0.1" id="record-trip" class="premium-input" placeholder="例: 450.8">
+                                    <span class="input-help">前回のメーターに関わらず、直接走行した距離を入力します。</span>
+                                </div>
+                                <div class="form-group">
+                                    <label for="record-fuel">給油量 <span class="unit-label">(L)</span></label>
+                                    <input type="number" step="0.01" id="record-fuel" class="premium-input" placeholder="例: 35.5" required>
+                                </div>
+                            </div>
+
+                            <div class="divider"><span>金額の入力</span></div>
+
+                            <div class="form-row col-2">
+                                <div class="form-group">
+                                    <label for="record-unit-price">ガソリン単価 <span class="unit-label">(円/L)</span></label>
+                                    <input type="number" step="1" id="record-unit-price" class="premium-input" placeholder="例: 172">
+                                </div>
+                                <div class="form-group">
+                                    <label for="record-total-cost">合計金額 <span class="unit-label">(円)</span></label>
+                                    <input type="number" step="1" id="record-total-cost" class="premium-input" placeholder="例: 6106">
+                                </div>
+                            </div>
+                            <span class="input-help-center">※単価または合計金額のどちらか一方を入力すると、もう一方は自動計算されます。</span>
+
+                            <div class="divider"><span>給油詳細・タグ</span></div>
+
+                            <div class="form-row col-2">
+                                <div class="form-group">
+                                    <label for="record-fuel-type">油種</label>
+                                    <div class="custom-select-wrapper">
+                                        <select id="record-fuel-type" class="premium-input">
+                                            <option value="レギュラー">レギュラー</option>
+                                            <option value="ハイオク">ハイオク</option>
+                                            <option value="軽油">軽油</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>給油時の状況 (複数選択可)</label>
+                                    <div class="tag-selector-grid">
+                                        <label class="tag-checkbox">
+                                            <input type="checkbox" name="tags" value="一般道">
+                                            <span>一般道</span>
+                                        </label>
+                                        <label class="tag-checkbox">
+                                            <input type="checkbox" name="tags" value="高速道路">
+                                            <span>高速道路</span>
+                                        </label>
+                                        <label class="tag-checkbox">
+                                            <input type="checkbox" name="tags" value="エアコン">
+                                            <span>エアコンON</span>
+                                        </label>
+                                        <label class="tag-checkbox">
+                                            <input type="checkbox" name="tags" value="渋滞">
+                                            <span>渋滞あり</span>
+                                        </label>
+                                        <label class="tag-checkbox">
+                                            <input type="checkbox" name="tags" value="満タン">
+                                            <span>満タン給油</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="record-note">メモ・備考</label>
+                                <textarea id="record-note" class="premium-input" rows="2" placeholder="例: タイヤ交換後初の給油、オイル交換も実施"></textarea>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" id="btn-reset-form" class="btn-secondary">クリア</button>
+                                <button type="submit" class="btn-primary">
+                                    <i class="fa-solid fa-check"></i>
+                                    <span>記録を保存する</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Side Tip Panel -->
+                    <div class="info-side-panel">
+                        <div class="info-card glass-panel">
+                            <h3><i class="fa-solid fa-lightbulb text-warning"></i> 燃費向上のためのヒント</h3>
+                            <ul>
+                                <li><strong>急発進・急加速を避ける:</strong> 穏やかに発進するだけで燃費が約10%改善します。</li>
+                                <li><strong>不要な荷物を降ろす:</strong> 100kgの荷物を載せて走ると、燃費が約3%悪化します。</li>
+                                <li><strong>タイヤの空気圧チェック:</strong> 指定空気圧より低いと抵抗が増え、燃費低下に繋がります。毎月チェックしましょう。</li>
+                                <li><strong>エアコンの使用を控える:</strong> 設定温度を適切に保ち、不要な時はオフにすることで燃料を節約できます。</li>
+                            </ul>
+                        </div>
+                        <div class="info-card glass-panel calculator-box">
+                            <h3><i class="fa-solid fa-calculator text-primary"></i> クイックシミュレーター</h3>
+                            <p>目標燃費と走行距離から、必要なガソリン量と概算費用を計算します。</p>
+                            <div class="sim-form">
+                                <div class="form-group-sm">
+                                    <label>走行予定距離 (km)</label>
+                                    <input type="number" id="sim-distance" class="premium-input-sm" value="500">
+                                </div>
+                                <div class="form-group-sm">
+                                    <label>想定燃費 (km/L)</label>
+                                    <input type="number" step="0.1" id="sim-efficiency" class="premium-input-sm" value="15.0">
+                                </div>
+                                <div class="form-group-sm">
+                                    <label>想定ガソリン価格 (円/L)</label>
+                                    <input type="number" id="sim-price" class="premium-input-sm" value="170">
+                                </div>
+                                <div class="sim-result">
+                                    <div class="sim-res-item">
+                                        <span>必要燃料:</span>
+                                        <strong id="sim-res-fuel">-</strong> <small>L</small>
+                                    </div>
+                                    <div class="sim-res-item">
+                                        <span>概算費用:</span>
+                                        <strong id="sim-res-cost">-</strong> <small>円</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- History Tab -->
+            <section id="records-history-tab" class="tab-content">
+                <div class="glass-panel">
+                    <div class="records-filter-bar">
+                        <div class="filter-group-main">
+                            <div class="search-box">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="history-search" placeholder="メモやタグで検索...">
+                            </div>
+                            <div class="select-box-wrapper">
+                                <select id="history-filter-fuel-type" class="premium-input-sm">
+                                    <option value="all">すべての油種</option>
+                                    <option value="レギュラー">レギュラー</option>
+                                    <option value="ハイオク">ハイオク</option>
+                                    <option value="軽油">軽油</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="filter-actions">
+                            <button class="btn-secondary-sm" id="btn-clear-filters">クリア</button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>日付</th>
+                                    <th>車両</th>
+                                    <th>走行距離</th>
+                                    <th>給油量</th>
+                                    <th>単価</th>
+                                    <th>合計金額</th>
+                                    <th>計算燃費</th>
+                                    <th>油種/状況</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                                <!-- Populated dynamically by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="table-footer-actions">
+                        <p class="records-count-label">全 <span id="records-count">0</span> 件の記録</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Vehicles Management Tab -->
+            <section id="vehicles-tab" class="tab-content">
+                <div class="vehicles-layout">
+                    <div class="vehicle-list-section">
+                        <h2>登録されている車両</h2>
+                        <p class="section-desc">車両ごとに個別に燃費を計算・記録します。</p>
+                        <div class="vehicle-cards-grid" id="vehicle-cards-container">
+                            <!-- Populated dynamically by JS -->
+                        </div>
+                    </div>
+
+                    <div class="vehicle-add-section glass-panel">
+                        <h3><i class="fa-solid fa-plus-circle text-primary"></i> 新しい車両を登録</h3>
+                        <form id="add-vehicle-form" class="premium-form">
+                            <div class="form-group">
+                                <label for="vehicle-name">車両名 (必須)</label>
+                                <input type="text" id="vehicle-name" class="premium-input" placeholder="例: プリウス, 家族のSUV" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="vehicle-maker">メーカー・車種 (任意)</label>
+                                <input type="text" id="vehicle-maker" class="premium-input" placeholder="例: トヨタ">
+                            </div>
+                            <div class="form-row col-2">
+                                <div class="form-group">
+                                    <label for="vehicle-initial-odometer">初期オドメーター値 <span class="unit-label">(km)</span></label>
+                                    <input type="number" step="0.1" id="vehicle-initial-odometer" class="premium-input" placeholder="例: 0">
+                                    <span class="input-help">オドメーター入力時の最初の基準点になります。</span>
+                                </div>
+                                <div class="form-group">
+                                    <label for="vehicle-fuel-capacity">燃料タンク容量 <span class="unit-label">(L)</span></label>
+                                    <input type="number" step="0.1" id="vehicle-fuel-capacity" class="premium-input" placeholder="例: 45">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn-primary btn-block">
+                                <i class="fa-solid fa-car"></i>
+                                <span>車両を登録する</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Data & Settings Tab -->
+            <section id="data-settings-tab" class="tab-content">
+                <div class="settings-grid">
+                    <div class="settings-card glass-panel">
+                        <h2><i class="fa-solid fa-database text-primary"></i> データのインポートとエクスポート</h2>
+                        <p class="settings-desc" id="backup-status-text">アプリの記録データはブラウザのローカルストレージに保存されています。機種変更時やバックアップの際にご利用ください。</p>
+                        
+                        <div class="backup-actions">
+                            <div class="backup-box">
+                                <h3>JSONデータバックアップ</h3>
+                                <p>すべての記録と車両設定を1つのファイルにエクスポート・インポートします。</p>
+                                <div class="button-group">
+                                    <button id="btn-export-json" class="btn-primary-sm">
+                                        <i class="fa-solid fa-download"></i> エクスポート (JSON)
+                                    </button>
+                                    <label class="btn-secondary-sm-file">
+                                        <i class="fa-solid fa-upload"></i> インポート (JSON)
+                                        <input type="file" id="import-json-file" accept=".json" class="d-none">
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="backup-box">
+                                <h3>CSVデータエクスポート</h3>
+                                <p>表計算ソフト（ExcelやGoogleスプレッドシート）で閲覧・編集するためのCSV形式で出力します。</p>
+                                <button id="btn-export-csv" class="btn-secondary-sm">
+                                    <i class="fa-solid fa-file-csv"></i> CSV形式で保存
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-card glass-panel">
+                        <h2><i class="fa-solid fa-trash-can text-danger"></i> データの消去・初期化</h2>
+                        <p class="settings-desc">現在保存されているすべてのデータ（給油記録、登録車両）を完全に削除します。この操作は取り消せません。</p>
+                        
+                        <div class="danger-zone">
+                            <div class="danger-info">
+                                <h3>データをすべてリセット</h3>
+                                <p>ローカルストレージ内の全データを削除し、初期状態に戻します。削除する前に必要に応じてバックアップを行ってください。</p>
+                            </div>
+                            <button id="btn-reset-all" class="btn-danger">
+                                <i class="fa-solid fa-triangle-exclamation"></i> データをすべてリセット
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Edit Record Modal -->
+    <div class="modal" id="edit-record-modal">
+        <div class="modal-dialog glass-panel">
+            <div class="modal-header">
+                <h2>給油記録の編集</h2>
+                <button class="modal-close" id="btn-close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-record-form" class="premium-form">
+                    <input type="hidden" id="edit-record-id">
+                    <div class="form-row col-2">
+                        <div class="form-group">
+                            <label for="edit-record-vehicle">対象車両</label>
+                            <select id="edit-record-vehicle" class="premium-input" required>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-record-date">給油日</label>
+                            <input type="date" id="edit-record-date" class="premium-input" required>
+                        </div>
+                    </div>
+
+                    <div class="divider"><span>走行距離の入力方式</span></div>
+                    
+                    <div class="input-method-selector">
+                        <label class="radio-tab">
+                            <input type="radio" name="edit-distance-method" value="odometer" id="edit-method-odometer">
+                            <div class="radio-tab-card">
+                                <i class="fa-solid fa-tachometer-alt"></i>
+                                <span>オドメーター (総走行距離)</span>
+                            </div>
+                        </label>
+                        <label class="radio-tab">
+                            <input type="radio" name="edit-distance-method" value="trip" id="edit-method-trip">
+                            <div class="radio-tab-card">
+                                <i class="fa-solid fa-route"></i>
+                                <span>トリップメーター (区間距離)</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="form-row col-2">
+                        <div class="form-group" id="edit-odometer-group">
+                            <label for="edit-record-odometer">今回のオドメーター値 <span class="unit-label">(km)</span></label>
+                            <input type="number" step="0.1" id="edit-record-odometer" class="premium-input">
+                        </div>
+                        <div class="form-group d-none" id="edit-trip-group">
+                            <label for="edit-record-trip">区間走行距離 <span class="unit-label">(km)</span></label>
+                            <input type="number" step="0.1" id="edit-record-trip" class="premium-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-record-fuel">給油量 <span class="unit-label">(L)</span></label>
+                            <input type="number" step="0.01" id="edit-record-fuel" class="premium-input" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row col-2">
+                        <div class="form-group">
+                            <label for="edit-record-unit-price">ガソリン単価 <span class="unit-label">(円/L)</span></label>
+                            <input type="number" step="1" id="edit-record-unit-price" class="premium-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-record-total-cost">合計金額 <span class="unit-label">(円)</span></label>
+                            <input type="number" step="1" id="edit-record-total-cost" class="premium-input">
+                        </div>
+                    </div>
+
+                    <div class="form-row col-2">
+                        <div class="form-group">
+                            <label for="edit-record-fuel-type">油種</label>
+                            <select id="edit-record-fuel-type" class="premium-input">
+                                <option value="レギュラー">レギュラー</option>
+                                <option value="ハイオク">ハイオク</option>
+                                <option value="軽油">軽油</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>給油時の状況</label>
+                            <div class="tag-selector-grid">
+                                <label class="tag-checkbox">
+                                    <input type="checkbox" name="edit-tags" value="一般道">
+                                    <span>一般道</span>
+                                </label>
+                                <label class="tag-checkbox">
+                                    <input type="checkbox" name="edit-tags" value="高速道路">
+                                    <span>高速道路</span>
+                                </label>
+                                <label class="tag-checkbox">
+                                    <input type="checkbox" name="edit-tags" value="エアコン">
+                                    <span>エアコンON</span>
+                                </label>
+                                <label class="tag-checkbox">
+                                    <input type="checkbox" name="edit-tags" value="渋滞">
+                                    <span>渋滞あり</span>
+                                </label>
+                                <label class="tag-checkbox">
+                                    <input type="checkbox" name="edit-tags" value="満タン">
+                                    <span>満タン給油</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-record-note">メモ・備考</label>
+                        <textarea id="edit-record-note" class="premium-input" rows="2"></textarea>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" id="btn-cancel-edit">キャンセル</button>
+                        <button type="submit" class="btn-primary">変更を保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast">
+        <i class="fa-solid fa-circle-check toast-icon"></i>
+        <span id="toast-message">メッセージ</span>
+    </div>
+
+    <!-- Custom JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
