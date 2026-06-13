@@ -1,0 +1,22 @@
+{
+  "name": "EcoDrive 燃費ダッシュボード",
+  "short_name": "EcoDrive",
+  "description": "ガソリン燃費計算記録アプリケーション",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#080c14",
+  "theme_color": "#080c14",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
